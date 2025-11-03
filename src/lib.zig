@@ -60,6 +60,7 @@ pub const Client = struct {
     }
 
     /// Send a POST request with JSON body to the specified path
+    /// Accepts HTTP 200 OK or 201 Created as success
     pub fn post(self: *Client, path: []const u8, body: []const u8) ![]const u8 {
         const url = try std.fmt.allocPrint(self.allocator, "{s}{s}", .{ self.base_url, path });
         defer self.allocator.free(url);
@@ -95,6 +96,7 @@ pub const Client = struct {
     }
 
     /// Send a PUT request with JSON body to the specified path
+    /// Accepts HTTP 200 OK or 204 No Content as success
     pub fn put(self: *Client, path: []const u8, body: []const u8) ![]const u8 {
         const url = try std.fmt.allocPrint(self.allocator, "{s}{s}", .{ self.base_url, path });
         defer self.allocator.free(url);
@@ -117,7 +119,7 @@ pub const Client = struct {
         try request.finish();
         try request.wait();
 
-        if (request.response.status != .ok) {
+        if (request.response.status != .ok and request.response.status != .no_content) {
             return error.HttpRequestFailed;
         }
 
@@ -130,6 +132,7 @@ pub const Client = struct {
     }
 
     /// Send a DELETE request to the specified path
+    /// Accepts HTTP 200 OK or 204 No Content as success
     pub fn delete(self: *Client, path: []const u8) ![]const u8 {
         const url = try std.fmt.allocPrint(self.allocator, "{s}{s}", .{ self.base_url, path });
         defer self.allocator.free(url);
