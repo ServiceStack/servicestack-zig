@@ -141,10 +141,11 @@ pub fn main() !void {
         .completed = null,
     };
 
-    const response = try client.post(GetTodosResponse, "/todos", request);
+    const parsed = try client.post(GetTodosResponse, "/todos", request);
+    defer parsed.deinit();
     
-    std.debug.print("Found {} todos\n", .{response.total});
-    for (response.todos) |todo| {
+    std.debug.print("Found {} todos\n", .{parsed.value.total});
+    for (parsed.value.todos) |todo| {
         std.debug.print("- {s} (completed: {})\n", .{todo.title, todo.completed});
     }
 }

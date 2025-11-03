@@ -59,8 +59,9 @@ pub fn main() !void {
     const request = Hello{ .name = "World" };
 
     // Make a POST request
-    const response = try client.post(HelloResponse, "/hello", request);
-    std.debug.print("Result: {s}\n", .{response.result});
+    const parsed = try client.post(HelloResponse, "/hello", request);
+    defer parsed.deinit();
+    std.debug.print("Result: {s}\n", .{parsed.value.result});
 }
 ```
 
@@ -70,19 +71,29 @@ The `JsonServiceClient` supports all common HTTP methods:
 
 ```zig
 // GET request
-const response = try client.get(MyResponse, "/api/resource");
+const parsed = try client.get(MyResponse, "/api/resource");
+defer parsed.deinit();
+const response = parsed.value;
 
 // POST request
-const response = try client.post(MyResponse, "/api/resource", request);
+const parsed = try client.post(MyResponse, "/api/resource", request);
+defer parsed.deinit();
+const response = parsed.value;
 
 // PUT request
-const response = try client.put(MyResponse, "/api/resource", request);
+const parsed = try client.put(MyResponse, "/api/resource", request);
+defer parsed.deinit();
+const response = parsed.value;
 
 // DELETE request
-const response = try client.delete(MyResponse, "/api/resource");
+const parsed = try client.delete(MyResponse, "/api/resource");
+defer parsed.deinit();
+const response = parsed.value;
 
 // PATCH request
-const response = try client.patch(MyResponse, "/api/resource", request);
+const parsed = try client.patch(MyResponse, "/api/resource", request);
+defer parsed.deinit();
+const response = parsed.value;
 ```
 
 ### Configuration

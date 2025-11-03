@@ -50,16 +50,24 @@ pub fn main() !void {
 ```zig
 // POST request with DTO
 const request = Hello{ .name = "World" };
-const response = try client.post(HelloResponse, "/hello", request);
+const parsed = try client.post(HelloResponse, "/hello", request);
+defer parsed.deinit();
+const response = parsed.value;
 
 // GET request
-const users = try client.get(UsersResponse, "/users");
+const parsed_users = try client.get(UsersResponse, "/users");
+defer parsed_users.deinit();
+const users = parsed_users.value;
 
 // PUT request
-const updated = try client.put(UpdateResponse, "/users/1", updateRequest);
+const parsed_update = try client.put(UpdateResponse, "/users/1", updateRequest);
+defer parsed_update.deinit();
+const updated = parsed_update.value;
 
 // DELETE request
-const deleted = try client.delete(DeleteResponse, "/users/1");
+const parsed_delete = try client.delete(DeleteResponse, "/users/1");
+defer parsed_delete.deinit();
+const deleted = parsed_delete.value;
 ```
 
 ## Advanced Usage
@@ -106,7 +114,7 @@ const CreateUserResponse = struct {
 The client returns Zig errors for various failure conditions:
 
 ```zig
-const response = client.post(HelloResponse, "/hello", request) catch |err| {
+const parsed = client.post(HelloResponse, "/hello", request) catch |err| {
     switch (err) {
         error.HttpError => {
             std.debug.print("HTTP request failed\n", .{});
@@ -120,6 +128,8 @@ const response = client.post(HelloResponse, "/hello", request) catch |err| {
     }
     return err;
 };
+defer parsed.deinit();
+const response = parsed.value;
 ```
 
 ## ServiceStack DTO Generation
@@ -188,23 +198,25 @@ pub fn main() !void {
     client.setTimeout(30000);
 
     // Get all todos
-    const todos_response = try client.get(GetTodosResponse, "/todos");
-    std.debug.print("Found {} todos\n", .{todos_response.total});
+    const parsed_todos = try client.get(GetTodosResponse, "/todos");
+    defer parsed_todos.deinit();
+    std.debug.print("Found {} todos\n", .{parsed_todos.value.total});
 
     // Create a new todo
     const create_request = CreateTodoRequest{ 
         .title = "Learn Zig with ServiceStack" 
     };
-    const create_response = try client.post(
+    const parsed_create = try client.post(
         CreateTodoResponse, 
         "/todos", 
         create_request
     );
+    defer parsed_create.deinit();
     
-    if (create_response.success) {
+    if (parsed_create.value.success) {
         std.debug.print("Created todo #{}: {s}\n", .{
-            create_response.todo.id,
-            create_response.todo.title,
+            parsed_create.value.todo.id,
+            parsed_create.value.todo.title,
         });
     }
 }

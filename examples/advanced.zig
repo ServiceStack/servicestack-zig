@@ -105,8 +105,9 @@ pub fn main() !void {
     std.debug.print("  Username: {s}\n", .{auth_request.username});
     std.debug.print("  Provider: {s}\n\n", .{auth_request.provider});
     // In real usage:
-    // const auth_response = try client.post(AuthenticateResponse, "/auth/login", auth_request);
-    // std.debug.print("Authenticated! Session: {s}\n\n", .{auth_response.session_id});
+    // const parsed_auth = try client.post(AuthenticateResponse, "/auth/login", auth_request);
+    // defer parsed_auth.deinit();
+    // std.debug.print("Authenticated! Session: {s}\n\n", .{parsed_auth.value.session_id});
 
     // Example 2: Create a Todo
     std.debug.print("Example 2: Create a Todo\n", .{});
@@ -123,7 +124,8 @@ pub fn main() !void {
     }
     std.debug.print("  Priority: {}\n\n", .{create_request.priority});
     // In real usage:
-    // const create_response = try client.post(CreateTodoResponse, "/todos", create_request);
+    // const parsed_create = try client.post(CreateTodoResponse, "/todos", create_request);
+    // defer parsed_create.deinit();
 
     // Example 3: Get Todos with filters
     std.debug.print("Example 3: Get Todos with Filters\n", .{});
@@ -142,7 +144,8 @@ pub fn main() !void {
     std.debug.print("  Limit: {}\n", .{get_request.limit});
     std.debug.print("  Offset: {}\n\n", .{get_request.offset});
     // In real usage:
-    // const todos_response = try client.post(GetTodosResponse, "/todos/query", get_request);
+    // const parsed_todos = try client.post(GetTodosResponse, "/todos/query", get_request);
+    // defer parsed_todos.deinit();
 
     // Example 4: Update a Todo
     std.debug.print("Example 4: Update a Todo\n", .{});
@@ -161,14 +164,16 @@ pub fn main() !void {
     }
     std.debug.print("\n", .{});
     // In real usage:
-    // const update_response = try client.put(UpdateTodoResponse, "/todos/1", update_request);
+    // const parsed_update = try client.put(UpdateTodoResponse, "/todos/1", update_request);
+    // defer parsed_update.deinit();
 
     // Example 5: Delete a Todo
     std.debug.print("Example 5: Delete a Todo\n", .{});
     std.debug.print("------------------------\n", .{});
     std.debug.print("Request: DELETE /todos/1\n", .{});
     // In real usage:
-    // _ = try client.delete(DeleteResponse, "/todos/1");
+    // const parsed_delete = try client.delete(DeleteResponse, "/todos/1");
+    // defer parsed_delete.deinit();
 
     std.debug.print("\n=== All examples completed successfully! ===\n", .{});
     std.debug.print("\nTo use with a real ServiceStack API:\n", .{});

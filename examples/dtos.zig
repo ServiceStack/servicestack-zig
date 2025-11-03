@@ -280,7 +280,8 @@ pub fn main() !void {
     std.debug.print("Serialized CreateTodo to JSON:\n{s}\n\n", .{json_buffer.items});
 
     std.debug.print("These DTOs would be used with JsonServiceClient like:\n", .{});
-    std.debug.print("  const response = try client.post(AuthenticateResponse, \"/auth\", auth_request);\n", .{});
-    std.debug.print("  const todo = try client.post(CreateTodoResponse, \"/todos\", create_todo);\n", .{});
-    std.debug.print("  const todos = try client.post(GetTodosResponse, \"/todos/query\", query_todos);\n", .{});
+    std.debug.print("  const parsed_auth = try client.post(AuthenticateResponse, \"/auth\", auth_request);\n", .{});
+    std.debug.print("  defer parsed_auth.deinit();\n", .{});
+    std.debug.print("  const parsed_todo = try client.post(CreateTodoResponse, \"/todos\", create_todo);\n", .{});
+    std.debug.print("  defer parsed_todo.deinit();\n", .{});
 }

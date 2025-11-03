@@ -32,27 +32,32 @@ pub const JsonServiceClient = struct {
     }
 
     /// Send a GET request and parse the response
-    pub fn get(self: *Self, comptime TResponse: type, path: []const u8) !TResponse {
+    /// Caller owns the returned Parsed(TResponse) and must call deinit() on it
+    pub fn get(self: *Self, comptime TResponse: type, path: []const u8) !json.Parsed(TResponse) {
         return self.send(TResponse, .GET, path, null);
     }
 
     /// Send a POST request with a request DTO and parse the response
-    pub fn post(self: *Self, comptime TResponse: type, path: []const u8, request: anytype) !TResponse {
+    /// Caller owns the returned Parsed(TResponse) and must call deinit() on it
+    pub fn post(self: *Self, comptime TResponse: type, path: []const u8, request: anytype) !json.Parsed(TResponse) {
         return self.send(TResponse, .POST, path, request);
     }
 
     /// Send a PUT request with a request DTO and parse the response
-    pub fn put(self: *Self, comptime TResponse: type, path: []const u8, request: anytype) !TResponse {
+    /// Caller owns the returned Parsed(TResponse) and must call deinit() on it
+    pub fn put(self: *Self, comptime TResponse: type, path: []const u8, request: anytype) !json.Parsed(TResponse) {
         return self.send(TResponse, .PUT, path, request);
     }
 
     /// Send a DELETE request and parse the response
-    pub fn delete(self: *Self, comptime TResponse: type, path: []const u8) !TResponse {
+    /// Caller owns the returned Parsed(TResponse) and must call deinit() on it
+    pub fn delete(self: *Self, comptime TResponse: type, path: []const u8) !json.Parsed(TResponse) {
         return self.send(TResponse, .DELETE, path, null);
     }
 
     /// Send a PATCH request with a request DTO and parse the response
-    pub fn patch(self: *Self, comptime TResponse: type, path: []const u8, request: anytype) !TResponse {
+    /// Caller owns the returned Parsed(TResponse) and must call deinit() on it
+    pub fn patch(self: *Self, comptime TResponse: type, path: []const u8, request: anytype) !json.Parsed(TResponse) {
         return self.send(TResponse, .PATCH, path, request);
     }
 
@@ -63,7 +68,7 @@ pub const JsonServiceClient = struct {
         method: http.Method,
         path: []const u8,
         request: anytype,
-    ) !TResponse {
+    ) !json.Parsed(TResponse) {
         var client = http.Client{ .allocator = self.allocator };
         defer client.deinit();
 
@@ -93,8 +98,11 @@ pub const JsonServiceClient = struct {
         try headers.append("content-type", "application/json");
 
         // Make the request
+        const server_header_buffer = try self.allocator.alloc(u8, 8192);
+        defer self.allocator.free(server_header_buffer);
+        
         var req = try client.open(method, uri, .{
-            .server_header_buffer = try self.allocator.alloc(u8, 8192),
+            .server_header_buffer = server_header_buffer,
             .headers = headers,
         });
         defer req.deinit();
@@ -123,14 +131,13 @@ pub const JsonServiceClient = struct {
         }
 
         // Parse JSON response
-        const parsed = try json.parseFromSlice(
+        // Note: Caller owns the returned Parsed(TResponse) and must call deinit() on it
+        return try json.parseFromSlice(
             TResponse,
             self.allocator,
             response_buffer.items,
             .{ .ignore_unknown_fields = true },
         );
-
-        return parsed.value;
     }
 };
 

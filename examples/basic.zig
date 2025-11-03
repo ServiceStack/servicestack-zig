@@ -31,14 +31,16 @@ pub fn main() !void {
     // Make a POST request
     // Note: This is an example and will fail without a real endpoint
     // In a real scenario, you would use:
-    // const response = try client.post(HelloResponse, "/hello", request);
-    // std.debug.print("Response: {s}\n", .{response.result});
+    // const parsed = try client.post(HelloResponse, "/hello", request);
+    // defer parsed.deinit();
+    // std.debug.print("Response: {s}\n", .{parsed.value.result});
 
     std.debug.print("\nJsonServiceClient initialized successfully!\n", .{});
     std.debug.print("Base URL: {s}\n", .{client.base_url});
     std.debug.print("Timeout: {}ms\n", .{client.timeout_ms});
 
     std.debug.print("\nExample of how to use the client:\n", .{});
-    std.debug.print("  const response = try client.post(HelloResponse, \"/hello\", request);\n", .{});
-    std.debug.print("  std.debug.print(\"Result: {{s}}\\n\", .{{response.result}});\n", .{});
+    std.debug.print("  const parsed = try client.post(HelloResponse, \"/hello\", request);\n", .{});
+    std.debug.print("  defer parsed.deinit();\n", .{});
+    std.debug.print("  std.debug.print(\"Result: {{s}}\\n\", .{{parsed.value.result}});\n", .{});
 }

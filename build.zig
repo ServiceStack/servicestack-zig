@@ -6,7 +6,7 @@ pub fn build(b: *std.Build) void {
 
     // Create the module
     const servicestack_module = b.addModule("servicestack", .{
-        .source_file = .{ .path = "src/client.zig" },
+        .root_source_file = .{ .path = "src/client.zig" },
     });
 
     // Create a library

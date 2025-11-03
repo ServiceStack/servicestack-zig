@@ -98,9 +98,10 @@ pub fn main() !void {
 
     // Make a request
     const request = Hello{ .name = "World" };
-    const response = try client.post(HelloResponse, "/hello", request);
+    const parsed = try client.post(HelloResponse, "/hello", request);
+    defer parsed.deinit();
 
-    std.debug.print("Result: {s}\n", .{response.result});
+    std.debug.print("Result: {s}\n", .{parsed.value.result});
 }
 ```
 
@@ -151,16 +152,23 @@ const GetUserResponse = struct {
 
 ```zig
 // GET request
-const user = try client.get(GetUserResponse, "/users/1");
+const parsed_user = try client.get(GetUserResponse, "/users/1");
+defer parsed_user.deinit();
+const user = parsed_user.value;
 
 // POST request
-const created = try client.post(CreateUserResponse, "/users", create_request);
+const parsed_create = try client.post(CreateUserResponse, "/users", create_request);
+defer parsed_create.deinit();
+const created = parsed_create.value;
 
 // PUT request
-const updated = try client.put(UpdateUserResponse, "/users/1", update_request);
+const parsed_update = try client.put(UpdateUserResponse, "/users/1", update_request);
+defer parsed_update.deinit();
+const updated = parsed_update.value;
 
 // DELETE request
-_ = try client.delete(DeleteResponse, "/users/1");
+const parsed_delete = try client.delete(DeleteResponse, "/users/1");
+defer parsed_delete.deinit();
 ```
 
 #### Configure Timeout
@@ -172,10 +180,12 @@ client.setTimeout(60000); // 60 seconds
 #### Handle Errors
 
 ```zig
-const response = client.get(MyResponse, "/endpoint") catch |err| {
+const parsed = client.get(MyResponse, "/endpoint") catch |err| {
     std.debug.print("Error: {}\n", .{err});
     return err;
 };
+defer parsed.deinit();
+const response = parsed.value;
 ```
 
 ## Troubleshooting
@@ -240,14 +250,19 @@ pub fn main() !void {
 
     // Create a todo
     const create = CreateTodo{ .title = "Learn Zig" };
-    const created = try client.post(CreateTodoResponse, "/todos", create);
-    std.debug.print("Created todo #{}: {s}\n", .{ created.todo.id, created.todo.title });
+    const parsed_create = try client.post(CreateTodoResponse, "/todos", create);
+    defer parsed_create.deinit();
+    std.debug.print("Created todo #{}: {s}\n", .{ 
+        parsed_create.value.todo.id, 
+        parsed_create.value.todo.title 
+    });
 
     // Get all todos
-    const todos = try client.get(GetTodosResponse, "/todos");
-    std.debug.print("Found {} todos\n", .{todos.todos.len});
+    const parsed_todos = try client.get(GetTodosResponse, "/todos");
+    defer parsed_todos.deinit();
+    std.debug.print("Found {} todos\n", .{parsed_todos.value.todos.len});
 
-    for (todos.todos) |todo| {
+    for (parsed_todos.value.todos) |todo| {
         const status = if (todo.completed) "✓" else " ";
         std.debug.print("[{s}] {}: {s}\n", .{ status, todo.id, todo.title });
     }
