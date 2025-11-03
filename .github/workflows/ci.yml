@@ -9,6 +9,8 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     strategy:
       matrix:
         zig-version: ['0.13.0', '0.14.0']
