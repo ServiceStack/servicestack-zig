@@ -38,4 +38,23 @@ pub fn build(b: *std.Build) void {
     const run_example = b.addRunArtifact(example);
     const example_step = b.step("example", "Run basic example");
     example_step.dependOn(&run_example.step);
+
+    // Advanced example executable
+    const advanced_module = b.createModule(.{
+        .root_source_file = b.path("examples/advanced.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    advanced_module.addImport("servicestack", servicestack_module);
+
+    const advanced = b.addExecutable(.{
+        .name = "advanced",
+        .root_module = advanced_module,
+    });
+
+    b.installArtifact(advanced);
+
+    const run_advanced = b.addRunArtifact(advanced);
+    const advanced_step = b.step("advanced", "Run advanced example");
+    advanced_step.dependOn(&run_advanced.step);
 }

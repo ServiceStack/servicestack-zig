@@ -107,9 +107,41 @@ Sends a DELETE request to the specified path and returns the response body.
 # Run tests
 zig build test
 
-# Run example
+# Run basic example
 zig build example
+
+# Run advanced example
+zig build advanced
 ```
+
+## Examples
+
+The repository includes two examples:
+
+- `examples/basic.zig` - Simple GET and POST requests
+- `examples/advanced.zig` - Comprehensive example with error handling and all HTTP methods
+
+Run them with:
+```bash
+zig build example
+zig build advanced
+```
+
+## Publishing to Zigistry
+
+This package is ready to be published to Zigistry (the Zig package registry). The `build.zig.zon` file contains all necessary metadata:
+
+- Package name: `servicestack`
+- Version: `0.1.0`
+- Minimum Zig version: `0.13.0`
+- License: MIT
+
+To publish updates:
+
+1. Update the version in `build.zig.zon`
+2. Create a git tag: `git tag v0.1.0`
+3. Push the tag: `git push origin v0.1.0`
+4. Submit to Zigistry following their submission process
 
 ## Requirements
 
@@ -121,4 +153,4 @@ MIT License - see LICENSE file for details
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions are welcome! Please feel free to submit a Pull Request. See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
