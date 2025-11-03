@@ -5,6 +5,9 @@ const std = @import("std");
 /// This library provides a simple HTTP client for interacting with ServiceStack services.
 /// It supports JSON serialization/deserialization and common HTTP methods.
 
+/// Maximum size for HTTP response bodies (10 MB)
+const max_response_size = 10 * 1024 * 1024;
+
 /// HTTP Client for ServiceStack services
 pub const Client = struct {
     allocator: std.mem.Allocator,
@@ -16,7 +19,7 @@ pub const Client = struct {
         return Client{
             .allocator = allocator,
             .base_url = base_url,
-            .http_client = std.http.Client{ .allocator = allocator },
+            .http_client = .{ .allocator = allocator },
         };
     }
 
@@ -51,8 +54,7 @@ pub const Client = struct {
         var response_body = std.ArrayList(u8).init(self.allocator);
         defer response_body.deinit();
 
-        const max_size = 10 * 1024 * 1024; // 10 MB
-        try request.reader().readAllArrayList(&response_body, max_size);
+        try request.reader().readAllArrayList(&response_body, max_response_size);
 
         return try response_body.toOwnedSlice();
     }
@@ -87,8 +89,7 @@ pub const Client = struct {
         var response_body = std.ArrayList(u8).init(self.allocator);
         defer response_body.deinit();
 
-        const max_size = 10 * 1024 * 1024; // 10 MB
-        try request.reader().readAllArrayList(&response_body, max_size);
+        try request.reader().readAllArrayList(&response_body, max_response_size);
 
         return try response_body.toOwnedSlice();
     }
@@ -123,8 +124,7 @@ pub const Client = struct {
         var response_body = std.ArrayList(u8).init(self.allocator);
         defer response_body.deinit();
 
-        const max_size = 10 * 1024 * 1024; // 10 MB
-        try request.reader().readAllArrayList(&response_body, max_size);
+        try request.reader().readAllArrayList(&response_body, max_response_size);
 
         return try response_body.toOwnedSlice();
     }
@@ -155,8 +155,7 @@ pub const Client = struct {
         var response_body = std.ArrayList(u8).init(self.allocator);
         defer response_body.deinit();
 
-        const max_size = 10 * 1024 * 1024; // 10 MB
-        try request.reader().readAllArrayList(&response_body, max_size);
+        try request.reader().readAllArrayList(&response_body, max_response_size);
 
         return try response_body.toOwnedSlice();
     }
