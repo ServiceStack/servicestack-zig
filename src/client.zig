@@ -9,6 +9,7 @@ pub const JsonServiceClient = struct {
     allocator: mem.Allocator,
     base_url: []const u8,
     timeout_ms: u32,
+    max_response_size: usize,
 
     const Self = @This();
 
@@ -17,7 +18,8 @@ pub const JsonServiceClient = struct {
         return Self{
             .allocator = allocator,
             .base_url = try allocator.dupe(u8, base_url),
-            .timeout_ms = 30000, // 30 second default timeout
+            .timeout_ms = 30000, // 30 second default timeout (note: not enforced by std.http yet)
+            .max_response_size = 10 * 1024 * 1024, // 10MB default max response size
         };
     }
 
@@ -27,8 +29,14 @@ pub const JsonServiceClient = struct {
     }
 
     /// Set the timeout for requests in milliseconds
+    /// Note: Currently not enforced by std.http.Client, reserved for future use
     pub fn setTimeout(self: *Self, timeout_ms: u32) void {
         self.timeout_ms = timeout_ms;
+    }
+
+    /// Set the maximum response size in bytes
+    pub fn setMaxResponseSize(self: *Self, max_size: usize) void {
+        self.max_response_size = max_size;
     }
 
     /// Send a GET request and parse the response
@@ -107,7 +115,12 @@ pub const JsonServiceClient = struct {
         });
         defer req.deinit();
 
-        req.transfer_encoding = .chunked;
+        // Set content length for non-empty requests
+        if (body_buffer) |body| {
+            req.transfer_encoding = .{ .content_length = body.len };
+        } else {
+            req.transfer_encoding = .{ .content_length = 0 };
+        }
 
         try req.send();
 
@@ -118,17 +131,17 @@ pub const JsonServiceClient = struct {
         try req.finish();
         try req.wait();
 
+        // Check status code
+        if (req.response.status != .ok) {
+            // TODO: Improve error handling to include status code and response body
+            return error.HttpError;
+        }
+
         // Read response
         var response_buffer = std.ArrayList(u8).init(self.allocator);
         defer response_buffer.deinit();
 
-        const max_size = 10 * 1024 * 1024; // 10MB max
-        try req.reader().readAllArrayList(&response_buffer, max_size);
-
-        // Check status code
-        if (req.response.status != .ok) {
-            return error.HttpError;
-        }
+        try req.reader().readAllArrayList(&response_buffer, self.max_response_size);
 
         // Parse JSON response
         // Note: Caller owns the returned Parsed(TResponse) and must call deinit() on it
