@@ -1,4 +1,10 @@
 .{
+    .name = "servicestack-zig",
+    .version = "0.1.0",
+    .minimum_zig_version = "0.11.0",
+
+    .dependencies = .{},
+
     .name = "servicestack",
     .version = "0.1.0",
     .description = "ServiceStack HTTP Client Library for Zig",
@@ -9,6 +15,8 @@
         "build.zig.zon",
         "src",
         "examples",
+        "README.md",
+        "LICENSE",
         "LICENSE",
         "README.md",
         "CONTRIBUTING.md",
