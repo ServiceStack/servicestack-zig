@@ -1,6 +1,6 @@
 {
   "name": "servicestack-zig",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Typed Zig Client Library for consuming ServiceStack APIs",
   "repository": "ServiceStack/servicestack-zig",
   "private": true,

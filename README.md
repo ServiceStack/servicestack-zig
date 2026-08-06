@@ -14,7 +14,7 @@ Requires Zig 0.15+.
 ## Install
 
 ```bash
-zig fetch --save https://github.com/ServiceStack/servicestack-zig/archive/refs/tags/v0.1.2.tar.gz
+zig fetch --save https://github.com/ServiceStack/servicestack-zig/archive/refs/tags/v0.1.3.tar.gz
 ```
 
 Then add the module to your `build.zig`:
