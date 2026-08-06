@@ -1,14 +1,8 @@
 .{
-    .name = "servicestack-zig",
+    .name = .servicestack,
     .version = "0.1.0",
-    .minimum_zig_version = "0.11.0",
-
-    .dependencies = .{},
-
-    .name = "servicestack",
-    .version = "0.1.0",
-    .description = "ServiceStack HTTP Client Library for Zig",
-    .minimum_zig_version = "0.13.0",
+    .minimum_zig_version = "0.15.0",
+    .fingerprint = 0xd2cebf9d2ae6c601,
     .dependencies = .{},
     .paths = .{
         "build.zig",
@@ -17,9 +11,5 @@
         "examples",
         "README.md",
         "LICENSE",
-        "LICENSE",
-        "README.md",
-        "CONTRIBUTING.md",
-        "PUBLISHING.md",
     },
 }

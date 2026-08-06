@@ -1,270 +1,229 @@
 # servicestack-zig
 
-ServiceStack Client Zig Library - A JsonServiceClient for making API requests to ServiceStack services.
+Typed Zig Client Library for consuming [ServiceStack](https://servicestack.net) APIs.
 
-## Overview
+- Typed Request/Response DTOs, generated from any ServiceStack API
+- Response Types inferred from the Request DTO at comptime
+- Structured `ResponseStatus` errors with field validation errors
+- Auth with Basic Auth, API Keys, JWT Bearer Tokens and Session Cookies
+- Batched Requests, one-way Requests and custom URLs
+- Zero dependencies, only the Zig standard library
 
-This library provides a `JsonServiceClient` for the Zig programming language that enables you to easily consume ServiceStack APIs using strongly-typed DTOs (Data Transfer Objects).
+Requires Zig 0.15+.
 
-## Features
+## Install
 
-- ✅ HTTP GET, POST, PUT, DELETE, and PATCH support
-- ✅ JSON serialization/deserialization
-- ✅ Strongly-typed request/response DTOs
-- ✅ Configurable timeouts
-- ✅ Simple and intuitive API
-
-## Installation
-
-Add this package to your `build.zig.zon` dependencies:
-
-```zig
-.dependencies = .{
-    .servicestack = .{
-        .url = "https://github.com/ServiceStack/servicestack-zig/archive/refs/heads/main.tar.gz",
-    },
-},
-# ServiceStack Zig
-
-ServiceStack HTTP Client Library for Zig
-
-## Overview
-
-This library provides a simple and efficient HTTP client for interacting with ServiceStack services from Zig applications. It supports common HTTP methods (GET, POST, PUT, DELETE) with JSON serialization.
-
-## Installation
-
-### Using Zig Package Manager
-
-Add this to your `build.zig.zon`:
-
-```zig
-.{
-    .name = "my-project",
-    .version = "0.1.0",
-    .dependencies = .{
-        .servicestack = .{
-            .url = "https://github.com/ServiceStack/servicestack-zig/archive/<commit-hash>.tar.gz",
-            .hash = "<hash>",
-        },
-    },
-}
+```bash
+zig fetch --save https://github.com/ServiceStack/servicestack-zig/archive/refs/tags/v0.1.0.tar.gz
 ```
 
-Then in your `build.zig`, add the module:
+Then add the module to your `build.zig`:
 
 ```zig
-const servicestack_dep = b.dependency("servicestack", .{
-    .target = target,
-    .optimize = optimize,
+const servicestack = b.dependency("servicestack", .{ .target = target, .optimize = optimize });
+
+const exe = b.addExecutable(.{
+    .name = "myapp",
+    .root_module = b.createModule(.{
+        .root_source_file = b.path("src/main.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "servicestack", .module = servicestack.module("servicestack") }},
+    }),
 });
-
-exe.root_module.addImport("servicestack", servicestack_dep.module("servicestack"));
 ```
+
+## Generate Typed DTOs
+
+Generate the Zig DTOs of any ServiceStack API with the [get-dtos](https://www.npmjs.com/package/get-dtos) tool:
+
+```bash
+npx get-dtos zig https://blazor-vue.web-templates.io
+```
+
+Which downloads a `dtos.zig` containing the typed DTOs of the remote API:
+
+```zig
+const ss = @import("servicestack");
+
+// @Route("/hello/{Name}")
+pub const Hello = struct {
+    pub const ss_name = "Hello";
+    pub const ss_verb = "GET";
+    pub const Response = HelloResponse;
+
+    name: ?[]const u8 = null,
+};
+
+pub const HelloResponse = struct {
+    result: ?[]const u8 = null,
+    responseStatus: ?ss.ResponseStatus = null,
+};
+```
+
+The generated `ss_name`, `ss_verb` and `Response` declarations are what let the
+client resolve each API's route, HTTP Method and Response Type at comptime.
 
 ## Usage
 
-### Basic Example
-
 ```zig
 const std = @import("std");
-const servicestack = @import("servicestack");
-
-// Define your ServiceStack DTOs
-const Hello = struct {
-    name: []const u8,
-};
-
-const HelloResponse = struct {
-    result: []const u8,
-};
+const ss = @import("servicestack");
+const dtos = @import("dtos.zig");
 
 pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    var gpa: std.heap.GeneralPurposeAllocator(.{}) = .{};
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    // Initialize the JsonServiceClient
-    var client = try servicestack.JsonServiceClient.init(
-        allocator,
-        "https://test.servicestack.net"
-    );
+    var client = try ss.JsonServiceClient.init(allocator, "https://blazor-vue.web-templates.io");
     defer client.deinit();
 
-    // Create a request DTO
-    const request = Hello{ .name = "World" };
+    var res = try client.send(dtos.Hello{ .name = "World" }); // res.value is a HelloResponse
+    defer res.deinit();
 
-    // Make a POST request
-    const parsed = try client.post(HelloResponse, "/hello", request);
-    defer parsed.deinit();
-    std.debug.print("Result: {s}\n", .{parsed.value.result});
+    std.debug.print("{s}\n", .{res.value.result.?});
 }
 ```
 
-### HTTP Methods
+Responses are returned as a `std.json.Parsed(T)` that owns its memory — call
+`deinit()` when you're done with it.
 
-The `JsonServiceClient` supports all common HTTP methods:
-
-```zig
-// GET request
-const parsed = try client.get(MyResponse, "/api/resource");
-defer parsed.deinit();
-const response = parsed.value;
-
-// POST request
-const parsed = try client.post(MyResponse, "/api/resource", request);
-defer parsed.deinit();
-const response = parsed.value;
-
-// PUT request
-const parsed = try client.put(MyResponse, "/api/resource", request);
-defer parsed.deinit();
-const response = parsed.value;
-
-// DELETE request
-const parsed = try client.delete(MyResponse, "/api/resource");
-defer parsed.deinit();
-const response = parsed.value;
-
-// PATCH request
-const parsed = try client.patch(MyResponse, "/api/resource", request);
-defer parsed.deinit();
-const response = parsed.value;
-```
-
-### Configuration
+`send` uses the HTTP Method the API is annotated with, use `get`, `post`, `put`,
+`patch` or `delete` to send a Request DTO with a specific HTTP Method:
 
 ```zig
-// Set custom timeout (in milliseconds)
-client.setTimeout(60000); // 60 seconds
+var res = try client.post(dtos.Hello{ .name = "World" });
 ```
-    // Create a ServiceStack client
-    var client = servicestack.Client.init(allocator, "https://api.example.com");
-    defer client.deinit();
 
-    // GET request
-    const response = try client.get("/users/123");
-    defer allocator.free(response);
-    std.debug.print("Response: {s}\n", .{response});
+APIs that don't return a Response Body are sent with `sendVoid`:
 
-    // POST request with JSON body
-    const json_body = "{\"name\": \"John Doe\"}";
-    const post_response = try client.post("/users", json_body);
-    defer allocator.free(post_response);
-    
-    // PUT request
-    const put_response = try client.put("/users/123", json_body);
-    defer allocator.free(put_response);
-    
-    // DELETE request
-    const delete_response = try client.delete("/users/123");
-    defer allocator.free(delete_response);
+```zig
+try client.sendVoid(dtos.DeleteBooking{ .id = 1 });
+```
+
+### AutoQuery
+
+AutoQuery APIs return a typed `ss.QueryResponse(T)`, with the query params of
+their base type flattened into the Request DTO:
+
+```zig
+var res = try client.send(dtos.QueryBookings{ .take = 5, .orderByDesc = "id" });
+defer res.deinit();
+
+for (res.value.results.?) |booking| {
+    std.debug.print("{d} {s}\n", .{ booking.id, booking.name.? });
 }
 ```
 
-## API Reference
+### Error Handling
 
-### Client
+Failed API Requests return `error.WebServiceException`, with the HTTP Status Code
+and structured error available from `client.getError()`:
 
-#### `init(allocator: std.mem.Allocator, base_url: []const u8) Client`
-
-Creates a new ServiceStack client with the specified base URL.
-
-#### `deinit(self: *Client) void`
-
-Cleans up resources used by the client.
-
-#### `get(self: *Client, path: []const u8) ![]const u8`
-
-Sends a GET request to the specified path and returns the response body.
-
-#### `post(self: *Client, path: []const u8, body: []const u8) ![]const u8`
-
-Sends a POST request with a JSON body to the specified path and returns the response body.
-
-#### `put(self: *Client, path: []const u8, body: []const u8) ![]const u8`
-
-Sends a PUT request with a JSON body to the specified path and returns the response body.
-
-#### `delete(self: *Client, path: []const u8) ![]const u8`
-
-Sends a DELETE request to the specified path and returns the response body.
-
-## Building
-
-```bash
-# Build the library
-zig build
-
-# Run tests
-zig build test
-
-# Run the example
-zig build example
+```zig
+if (client.send(dtos.CreateBooking{})) |res| {
+    defer res.deinit();
+} else |_| {
+    const web_ex = client.getError().?;
+    std.debug.print("{d} {s}: {s}\n", .{
+        web_ex.status_code,        // 400
+        web_ex.errorCode(),        // "NotEmpty"
+        web_ex.errorMessage(),     // "'Name' must not be empty."
+    });
+    std.debug.print("{?s}\n", .{web_ex.fieldError("Name")});
+    std.debug.print("{}\n", .{web_ex.isUnauthorized()}); // false
+}
 ```
 
-## Adding ServiceStack Reference
+Alternatively `api` returns errors in its result instead of an error union:
 
-To use this client with your ServiceStack services, generate Zig DTOs using [Add ServiceStack Reference](https://docs.servicestack.net/add-servicestack-reference):
+```zig
+const api = try client.api(dtos.CreateBooking{});
+defer api.deinit();
 
-1. Use the ServiceStack `x` tool or your ServiceStack instance to generate DTOs
-2. Add the generated Zig DTO files to your project
-3. Import and use them with the `JsonServiceClient`
-
-## Requirements
-
-- Zig 0.11.0 or later
-
-## License
-
-See LICENSE file for details.
-# Run tests
-zig build test
-
-# Run basic example
-zig build example
-
-# Run advanced example
-zig build advanced
+if (api.failed()) {
+    std.debug.print("{s} {?s}\n", .{ api.errorCode(), api.fieldError("Name") });
+} else {
+    std.debug.print("{s}\n", .{api.response.?.id.?});
+}
 ```
+
+### Authentication
+
+API Keys and JWTs are sent in the Bearer Token Authorization header:
+
+```zig
+client.setBearerToken("ak-87949de37e894627a9f6173154e7cafa");
+```
+
+HTTP Basic Auth credentials:
+
+```zig
+client.setCredentials("username", "password");
+```
+
+Sign in with ServiceStack's Authenticate API. The client retains the Session
+Cookies the Server returns (`std.http.Client` has no cookie jar of its own), so
+subsequent Requests stay authenticated:
+
+```zig
+var auth = try client.authenticate("username", "password");
+defer auth.deinit();
+```
+
+### Batched Requests
+
+```zig
+const requests = [_]dtos.Hello{ .{ .name = "A" }, .{ .name = "B" } };
+var res = try client.sendAll(dtos.HelloResponse, requests[0..]);
+defer res.deinit();
+```
+
+Or send a Request to a one-way endpoint that ignores its Response:
+
+```zig
+try client.publish(dtos.Hello{ .name = "World" });
+```
+
+### Custom URLs
+
+```zig
+var res = try client.getUrl(dtos.HelloResponse, "/hello/World");
+defer res.deinit();
+
+const csv = try client.sendUrlString(.GET, "/api/QueryBookings.csv", null);
+defer allocator.free(csv);
+```
+
+### Client Configuration
+
+```zig
+try client.setHeader("X-Custom", "Value");
+try client.setBasePath("");      // use the /json/reply pre-defined routes
+client.cookies.clear();          // clear the Session Cookies
+```
+
+`JsonServiceClient.init` sends Requests to ServiceStack's pre-defined `/api`
+route. Use `setBasePath("")` for older ServiceStack instances that only have the
+`/json/reply` routes enabled.
 
 ## Examples
 
-The repository includes two examples:
+- [examples/hello.zig](examples/hello.zig) — typed APIs, batched Requests,
+  validation errors and authentication
 
-- `examples/basic.zig` - Simple GET and POST requests
-- `examples/advanced.zig` - Comprehensive example with error handling and all HTTP methods
-
-Run them with:
 ```bash
 zig build example
-zig build advanced
 ```
 
-## Publishing to Zigistry
+## Tests
 
-This package is ready to be published to Zigistry (the Zig package registry). The `build.zig.zon` file contains all necessary metadata:
-
-- Package name: `servicestack`
-- Version: `0.1.0`
-- Minimum Zig version: `0.13.0`
-- License: MIT
-
-To publish updates:
-
-1. Update the version in `build.zig.zon`
-2. Create a git tag: `git tag v0.1.0`
-3. Push the tag: `git push origin v0.1.0`
-4. Submit to Zigistry following their submission process
-
-## Requirements
-
-- Zig 0.13.0 or later
+```bash
+zig build test              # unit tests
+zig build test-integration  # integration tests against test.servicestack.net
+```
 
 ## License
 
-MIT License - see LICENSE file for details
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request. See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+MIT. See [LICENSE](LICENSE).

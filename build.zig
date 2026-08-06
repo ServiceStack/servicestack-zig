@@ -4,95 +4,43 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    // Create the module
-    const servicestack_module = b.addModule("servicestack", .{
-        .root_source_file = .{ .path = "src/client.zig" },
-    });
-
-    // Create a library
-    const lib = b.addStaticLibrary(.{
-        .name = "servicestack-zig",
-        .root_source_file = .{ .path = "src/client.zig" },
-        .target = target,
-        .optimize = optimize,
-    });
-    b.installArtifact(lib);
-
-    // Create tests
-    const tests = b.addTest(.{
-        .root_source_file = .{ .path = "src/client.zig" },
+    const mod = b.addModule("servicestack", .{
+        .root_source_file = b.path("src/root.zig"),
         .target = target,
         .optimize = optimize,
     });
 
+    // zig build test
+    const tests = b.addTest(.{ .root_module = mod });
     const run_tests = b.addRunArtifact(tests);
     const test_step = b.step("test", "Run library tests");
     test_step.dependOn(&run_tests.step);
 
-    // Create example
+    // zig build test-integration (calls the live test.servicestack.net Services)
+    const integration_tests = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("tests/integration.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{.{ .name = "servicestack", .module = mod }},
+        }),
+    });
+    const run_integration_tests = b.addRunArtifact(integration_tests);
+    const integration_step = b.step("test-integration", "Run integration tests against test.servicestack.net");
+    integration_step.dependOn(&run_integration_tests.step);
+
+    // zig build example
     const example = b.addExecutable(.{
-        .name = "example",
-        .root_source_file = .{ .path = "examples/basic.zig" },
-        .target = target,
-        .optimize = optimize,
+        .name = "hello",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("examples/hello.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{.{ .name = "servicestack", .module = mod }},
+        }),
     });
-    example.addModule("servicestack", servicestack_module);
     b.installArtifact(example);
-
     const run_example = b.addRunArtifact(example);
-    const example_step = b.step("example", "Run example");
+    const example_step = b.step("example", "Run the hello example");
     example_step.dependOn(&run_example.step);
-    // ServiceStack HTTP Client library module
-    const servicestack_module = b.addModule("servicestack", .{
-        .root_source_file = b.path("src/lib.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-
-    // Library tests
-    const lib_unit_tests = b.addTest(.{
-        .root_module = servicestack_module,
-    });
-
-    const run_lib_unit_tests = b.addRunArtifact(lib_unit_tests);
-    const test_step = b.step("test", "Run library tests");
-    test_step.dependOn(&run_lib_unit_tests.step);
-
-    // Example executable
-    const example_module = b.createModule(.{
-        .root_source_file = b.path("examples/basic.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-    example_module.addImport("servicestack", servicestack_module);
-
-    const example = b.addExecutable(.{
-        .name = "example",
-        .root_module = example_module,
-    });
-
-    b.installArtifact(example);
-
-    const run_example = b.addRunArtifact(example);
-    const example_step = b.step("example", "Run basic example");
-    example_step.dependOn(&run_example.step);
-
-    // Advanced example executable
-    const advanced_module = b.createModule(.{
-        .root_source_file = b.path("examples/advanced.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-    advanced_module.addImport("servicestack", servicestack_module);
-
-    const advanced = b.addExecutable(.{
-        .name = "advanced",
-        .root_module = advanced_module,
-    });
-
-    b.installArtifact(advanced);
-
-    const run_advanced = b.addRunArtifact(advanced);
-    const advanced_step = b.step("advanced", "Run advanced example");
-    advanced_step.dependOn(&run_advanced.step);
 }
