@@ -67,6 +67,18 @@ pub const WebServiceException = struct {
     }
 };
 
+/// A file uploaded in a `multipart/form-data` Request.
+pub const UploadFile = struct {
+    /// Field name of the file in the multipart Request, defaults to "file"
+    field_name: []const u8 = "file",
+    /// File name of the uploaded file
+    file_name: []const u8 = "file",
+    /// Content-Type of the uploaded file
+    content_type: []const u8 = "application/octet-stream",
+    /// Contents of the uploaded file
+    contents: []const u8,
+};
+
 /// The Response Type a Request DTO returns, declared with `pub const Response`.
 pub fn ResponseTypeOf(comptime T: type) type {
     if (@hasDecl(T, "Response")) return T.Response;
@@ -246,6 +258,13 @@ pub const JsonServiceClient = struct {
     password: ?[]const u8 = null,
     /// Additional Headers sent with each Request
     headers: std.ArrayList(std.http.Header),
+    /// Refresh Token used to fetch a new Bearer Token when a Request returns 401
+    refresh_token: ?[]const u8 = null,
+    /// URL used to fetch a new Access Token, defaults to this client's GetAccessToken API
+    refresh_token_uri: ?[]const u8 = null,
+    /// Invoked when a Request returns 401 Unauthorized, letting the client
+    /// re-authenticate before the Request is retried once
+    on_authentication_required: ?*const fn (client: *Self) anyerror!void = null,
     /// Details of the last failed Request
     last_error: ?WebServiceException = null,
     /// Session Cookies returned by the Server, sent with each Request
@@ -253,6 +272,8 @@ pub const JsonServiceClient = struct {
 
     http_client: std.http.Client,
     error_arena: std.heap.ArenaAllocator,
+    /// Bearer Token owned by the client, e.g. one fetched from a Refresh Token
+    owned_bearer_token: ?[]u8 = null,
 
     /// Creates a client that sends Requests to ServiceStack's pre-defined /api route.
     pub fn init(allocator: std.mem.Allocator, base_url: []const u8) !Self {
@@ -272,6 +293,7 @@ pub const JsonServiceClient = struct {
 
     /// Releases the memory owned by the client.
     pub fn deinit(self: *Self) void {
+        if (self.owned_bearer_token) |token| self.allocator.free(token);
         self.allocator.free(self.base_url);
         if (self.reply_base_url.len > 0) self.allocator.free(self.reply_base_url);
         if (self.oneway_base_url.len > 0) self.allocator.free(self.oneway_base_url);
@@ -299,6 +321,21 @@ pub const JsonServiceClient = struct {
     /// Sets the JWT or API Key sent in the Bearer Authorization header.
     pub fn setBearerToken(self: *Self, token: []const u8) void {
         self.bearer_token = token;
+    }
+
+    /// Sets a Bearer Token the client copies and owns, used for Tokens with a
+    /// shorter lifetime than their source, e.g. one fetched from a Refresh Token.
+    pub fn setOwnedBearerToken(self: *Self, token: []const u8) !void {
+        const owned = try self.allocator.dupe(u8, token);
+        if (self.owned_bearer_token) |previous| self.allocator.free(previous);
+        self.owned_bearer_token = owned;
+        self.bearer_token = owned;
+    }
+
+    /// Sets the Refresh Token used to fetch a new Bearer Token when a Request
+    /// returns 401 Unauthorized.
+    pub fn setRefreshToken(self: *Self, token: []const u8) void {
+        self.refresh_token = token;
     }
 
     /// Sets the UserName and Password sent in the HTTP Basic Auth header.
@@ -451,11 +488,79 @@ pub const JsonServiceClient = struct {
 
         if (res.value.bearerToken) |token| {
             if (token.len > 0) {
-                // The Parsed arena owns the token, copy it into the client's arena
-                self.bearer_token = try self.error_arena.allocator().dupe(u8, token);
+                // The Parsed arena owns the token, copy it into memory the client owns
+                try self.setOwnedBearerToken(token);
             }
         }
         return res;
+    }
+
+    // ── File Uploads ──
+
+    /// Uploads a file with a Request DTO as a `multipart/form-data` Request,
+    /// returning its typed Response, e.g:
+    ///
+    /// ```
+    /// var res = try client.postFileWithRequest(dtos.UploadPhoto{ .album = "Holiday" }, .{
+    ///     .field_name = "file",
+    ///     .file_name = "photo.png",
+    ///     .content_type = "image/png",
+    ///     .contents = bytes,
+    /// });
+    /// defer res.deinit();
+    /// ```
+    pub fn postFileWithRequest(
+        self: *Self,
+        request: anytype,
+        file: UploadFile,
+    ) !std.json.Parsed(ResponseTypeOf(@TypeOf(request))) {
+        const files = [_]UploadFile{file};
+        return self.postFilesWithRequest(request, files[0..]);
+    }
+
+    /// Uploads multiple files with a Request DTO as a `multipart/form-data` Request.
+    pub fn postFilesWithRequest(
+        self: *Self,
+        request: anytype,
+        files: []const UploadFile,
+    ) !std.json.Parsed(ResponseTypeOf(@TypeOf(request))) {
+        const url = try url_util.combineWith(self.allocator, self.reply_base_url, nameOf(@TypeOf(request)));
+        defer self.allocator.free(url);
+
+        const body = try self.postFilesWithRequestUrl(url, request, files);
+        defer self.allocator.free(body);
+
+        return self.parseResponse(ResponseTypeOf(@TypeOf(request)), body);
+    }
+
+    /// Uploads files with a Request DTO to a custom URL, returning the raw
+    /// Response Body. Caller owns the returned memory.
+    pub fn postFilesWithRequestUrl(
+        self: *Self,
+        path: []const u8,
+        request: anytype,
+        files: []const UploadFile,
+    ) ![]u8 {
+        var boundary_bytes: [16]u8 = undefined;
+        std.crypto.random.bytes(&boundary_bytes);
+
+        var hex: [boundary_bytes.len * 2]u8 = undefined;
+        const hex_chars = "0123456789abcdef";
+        for (boundary_bytes, 0..) |byte, i| {
+            hex[i * 2] = hex_chars[byte >> 4];
+            hex[i * 2 + 1] = hex_chars[byte & 0x0F];
+        }
+
+        const boundary = try std.fmt.allocPrint(self.allocator, "----ServiceStackFormBoundary{s}", .{hex});
+        defer self.allocator.free(boundary);
+
+        const body = try self.multipartBody(boundary, request, files);
+        defer self.allocator.free(body);
+
+        const content_type = try std.fmt.allocPrint(self.allocator, "multipart/form-data; boundary={s}", .{boundary});
+        defer self.allocator.free(content_type);
+
+        return self.sendRequest(.POST, path, body, content_type, true);
     }
 
     // ── URL API ──
@@ -507,7 +612,8 @@ pub const JsonServiceClient = struct {
         return std.json.Parsed(ResponseType){ .arena = arena, .value = value };
     }
 
-    /// Sends the HTTP Request, returning the Response Body. Caller owns the memory.
+    /// Serializes a Request DTO as JSON and sends it, returning the Response Body.
+    /// Caller owns the memory.
     fn sendUrlRequest(
         self: *Self,
         method: std.http.Method,
@@ -515,8 +621,27 @@ pub const JsonServiceClient = struct {
         request: anytype,
         retry_on_auth_failure: bool,
     ) ![]u8 {
-        _ = retry_on_auth_failure;
+        var payload: ?[]u8 = null;
+        defer if (payload) |p| self.allocator.free(p);
 
+        if (@TypeOf(request) != @TypeOf(null) and url_util.hasRequestBody(method)) {
+            payload = try std.fmt.allocPrint(self.allocator, "{f}", .{
+                std.json.fmt(request, .{ .emit_null_optional_fields = false }),
+            });
+        }
+
+        return self.sendRequest(method, path, payload, if (payload != null) "application/json" else null, retry_on_auth_failure);
+    }
+
+    /// Sends the HTTP Request, returning the Response Body. Caller owns the memory.
+    fn sendRequest(
+        self: *Self,
+        method: std.http.Method,
+        path: []const u8,
+        body: ?[]const u8,
+        content_type: ?[]const u8,
+        retry_on_auth_failure: bool,
+    ) ![]u8 {
         const url = try url_util.toAbsoluteUrl(self.allocator, self.base_url, path);
         defer self.allocator.free(url);
 
@@ -559,20 +684,14 @@ pub const JsonServiceClient = struct {
             try headers.append(self.allocator, header);
         }
 
-        var payload: ?[]u8 = null;
-        defer if (payload) |p| self.allocator.free(p);
-
-        if (@TypeOf(request) != @TypeOf(null) and url_util.hasRequestBody(method)) {
-            payload = try std.fmt.allocPrint(self.allocator, "{f}", .{
-                std.json.fmt(request, .{ .emit_null_optional_fields = false }),
-            });
-            try headers.append(self.allocator, .{ .name = "Content-Type", .value = "application/json" });
+        if (content_type) |ct| {
+            try headers.append(self.allocator, .{ .name = "Content-Type", .value = ct });
         }
 
         var req = try self.http_client.request(method, uri, .{ .extra_headers = headers.items });
         defer req.deinit();
 
-        if (payload) |p| {
+        if (body) |p| {
             req.transfer_encoding = .{ .content_length = p.len };
             var body_writer = try req.sendBodyUnflushed(&.{});
             try body_writer.writer.writeAll(p);
@@ -598,6 +717,14 @@ pub const JsonServiceClient = struct {
         errdefer self.allocator.free(response_body);
 
         const status_code = @intFromEnum(res.head.status);
+
+        if (status_code == 401 and retry_on_auth_failure) {
+            if (self.onAuthenticationRequired()) |_| {
+                self.allocator.free(response_body);
+                return self.sendRequest(method, path, body, content_type, false);
+            } else |_| {}
+        }
+
         if (status_code >= 400) {
             // response_body is released by the errdefer above
             try self.captureError(status_code, res.head.status.phrase() orelse "", response_body);
@@ -607,13 +734,92 @@ pub const JsonServiceClient = struct {
         return response_body;
     }
 
+    /// Builds the `multipart/form-data` body of a file upload Request, sending the
+    /// populated Request DTO properties as form fields. Caller owns the memory.
+    fn multipartBody(self: *Self, boundary: []const u8, request: anytype, files: []const UploadFile) ![]u8 {
+        var out: std.Io.Writer.Allocating = .init(self.allocator);
+        errdefer out.deinit();
+        const writer = &out.writer;
+
+        // Request DTO properties are sent as form fields
+        const json = try std.fmt.allocPrint(self.allocator, "{f}", .{
+            std.json.fmt(request, .{ .emit_null_optional_fields = false }),
+        });
+        defer self.allocator.free(json);
+
+        var parsed = try std.json.parseFromSlice(std.json.Value, self.allocator, json, .{});
+        defer parsed.deinit();
+
+        if (parsed.value == .object) {
+            var it = parsed.value.object.iterator();
+            while (it.next()) |entry| {
+                if (entry.value_ptr.* == .null) continue;
+
+                try writer.print("--{s}\r\n", .{boundary});
+                try writer.print("Content-Disposition: form-data; name=\"{s}\"\r\n\r\n", .{entry.key_ptr.*});
+                switch (entry.value_ptr.*) {
+                    .string => |str| try writer.writeAll(str),
+                    else => try writer.print("{f}", .{std.json.fmt(entry.value_ptr.*, .{})}),
+                }
+                try writer.writeAll("\r\n");
+            }
+        }
+
+        for (files) |file| {
+            try writer.print("--{s}\r\n", .{boundary});
+            try writer.print("Content-Disposition: form-data; name=\"{s}\"; filename=\"{s}\"\r\n", .{
+                file.field_name, file.file_name,
+            });
+            try writer.print("Content-Type: {s}\r\n\r\n", .{file.content_type});
+            try writer.writeAll(file.contents);
+            try writer.writeAll("\r\n");
+        }
+
+        try writer.print("--{s}--\r\n", .{boundary});
+        return out.toOwnedSlice();
+    }
+
+    /// Re-authenticates the client after a Request returned 401 Unauthorized,
+    /// using the Refresh Token when configured, otherwise the
+    /// `on_authentication_required` callback.
+    fn onAuthenticationRequired(self: *Self) !void {
+        if (self.refresh_token != null) {
+            return self.refreshAccessToken();
+        }
+
+        const callback = self.on_authentication_required orelse return ClientError.WebServiceException;
+        return callback(self);
+    }
+
+    /// Exchanges the Refresh Token for a new Bearer Token.
+    fn refreshAccessToken(self: *Self) !void {
+        const refresh_token = self.refresh_token orelse return ClientError.WebServiceException;
+
+        const url = if (self.refresh_token_uri) |uri|
+            try self.allocator.dupe(u8, uri)
+        else
+            try url_util.combineWith(self.allocator, self.reply_base_url, "GetAccessToken");
+        defer self.allocator.free(url);
+
+        const body = try self.sendUrlRequest(.POST, url, types.GetAccessToken{
+            .refreshToken = refresh_token,
+        }, false);
+        defer self.allocator.free(body);
+
+        var arena = std.heap.ArenaAllocator.init(self.allocator);
+        defer arena.deinit();
+
+        const res = try parseJson(types.GetAccessTokenResponse, arena.allocator(), body);
+        const access_token = res.accessToken orelse return ClientError.WebServiceException;
+        if (access_token.len == 0) return ClientError.WebServiceException;
+
+        // The parse arena owns the token, copy it into memory the client owns
+        try self.setOwnedBearerToken(access_token);
+    }
+
     /// Records the details of a failed Request in `last_error`.
     fn captureError(self: *Self, status_code: u16, status_description: []const u8, body: []const u8) !void {
         _ = self.error_arena.reset(.retain_capacity);
-        self.bearer_token = if (self.bearer_token) |token|
-            try self.error_arena.allocator().dupe(u8, token)
-        else
-            null;
 
         const allocator = self.error_arena.allocator();
         var web_ex = WebServiceException{
@@ -733,4 +939,56 @@ test "CookieJar ignores malformed Set-Cookie headers" {
     try jar.setCookie("no-equals-sign");
     try jar.setCookie("=missing-name");
     try std.testing.expect(try jar.cookieHeader(allocator) == null);
+}
+
+test "multipartBody sends Request DTO properties as form fields with files" {
+    const allocator = std.testing.allocator;
+    var client = try JsonServiceClient.init(allocator, "https://example.org");
+    defer client.deinit();
+
+    const UploadPhoto = struct {
+        album: ?[]const u8 = null,
+        notes: ?[]const u8 = null,
+    };
+
+    const files = [_]UploadFile{.{
+        .field_name = "file",
+        .file_name = "photo.png",
+        .content_type = "image/png",
+        .contents = "PNG-CONTENTS",
+    }};
+
+    const body = try client.multipartBody("BOUNDARY", UploadPhoto{ .album = "Holiday" }, files[0..]);
+    defer allocator.free(body);
+
+    // Populated properties are sent as form fields, empty ones are omitted
+    try std.testing.expect(std.mem.indexOf(u8, body, "Content-Disposition: form-data; name=\"album\"\r\n\r\nHoliday") != null);
+    try std.testing.expect(std.mem.indexOf(u8, body, "name=\"notes\"") == null);
+
+    // Files are sent with their filename and Content-Type
+    try std.testing.expect(std.mem.indexOf(u8, body, "name=\"file\"; filename=\"photo.png\"") != null);
+    try std.testing.expect(std.mem.indexOf(u8, body, "Content-Type: image/png") != null);
+    try std.testing.expect(std.mem.indexOf(u8, body, "PNG-CONTENTS") != null);
+
+    try std.testing.expect(std.mem.startsWith(u8, body, "--BOUNDARY\r\n"));
+    try std.testing.expect(std.mem.endsWith(u8, body, "--BOUNDARY--\r\n"));
+}
+
+test "multipartBody supports multiple files" {
+    const allocator = std.testing.allocator;
+    var client = try JsonServiceClient.init(allocator, "https://example.org");
+    defer client.deinit();
+
+    const files = [_]UploadFile{
+        .{ .field_name = "file1", .file_name = "a.txt", .contents = "AAA" },
+        .{ .field_name = "file2", .file_name = "b.txt", .contents = "BBB" },
+    };
+
+    const body = try client.multipartBody("BOUNDARY", .{}, files[0..]);
+    defer allocator.free(body);
+
+    try std.testing.expect(std.mem.indexOf(u8, body, "filename=\"a.txt\"") != null);
+    try std.testing.expect(std.mem.indexOf(u8, body, "filename=\"b.txt\"") != null);
+    // Files default to application/octet-stream
+    try std.testing.expect(std.mem.indexOf(u8, body, "Content-Type: application/octet-stream") != null);
 }

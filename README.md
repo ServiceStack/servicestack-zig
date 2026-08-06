@@ -186,6 +186,49 @@ Or send a Request to a one-way endpoint that ignores its Response:
 try client.publish(dtos.Hello{ .name = "World" });
 ```
 
+### Uploading Files
+
+Use `postFileWithRequest` to upload a file with an API Request:
+
+```zig
+var res = try client.postFileWithRequest(dtos.UploadPhoto{ .album = "Holiday" }, .{
+    .field_name = "file",
+    .file_name = "photo.png",
+    .content_type = "image/png",
+    .contents = bytes,
+});
+defer res.deinit();
+```
+
+The Request DTO's populated properties are sent as form fields alongside the
+file. To upload multiple files use `postFilesWithRequest`.
+
+### Transparently handle 401 Unauthorized Responses
+
+If the Server returns a 401 Unauthorized Response either because the client was
+unauthenticated or its Bearer Token or API Key had expired, use the
+`on_authentication_required` callback to re-authenticate before the original
+Request is automatically retried:
+
+```zig
+fn signIn(client: *ss.JsonServiceClient) anyerror!void {
+    var auth = try client.authenticate("username", "password");
+    auth.deinit();
+}
+
+client.on_authentication_required = signIn;
+
+// Automatically retries Requests returning 401 Responses
+var res = try client.send(dtos.Secured{});
+defer res.deinit();
+```
+
+A configured Refresh Token takes precedence over the callback:
+
+```zig
+client.setRefreshToken(refresh_token);
+```
+
 ### Custom URLs
 
 ```zig

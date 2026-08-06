@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.1]
+
+### Added
+
+- `postFileWithRequest` / `postFilesWithRequest` for uploading files with a
+  Request DTO as a `multipart/form-data` Request, incl. an `UploadFile` Type
+- `on_authentication_required` callback and Refresh Token support for
+  re-authenticating before automatically retrying a Request that returned
+  401 Unauthorized
+
+### Fixed
+
+- Bearer Tokens are now owned by the client instead of the error arena, which
+  is reset whenever a Request fails
+
 ## [0.1.0]
 
 ### Added
@@ -17,4 +32,5 @@ All notable changes to this project will be documented in this file.
 - Built-in ServiceStack DTOs referenced by generated DTOs (`ResponseStatus`,
   `QueryResponse(T)`, `Authenticate`, ...)
 
+[0.1.1]: https://github.com/ServiceStack/servicestack-zig/releases/tag/v0.1.1
 [0.1.0]: https://github.com/ServiceStack/servicestack-zig/releases/tag/v0.1.0
