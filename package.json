@@ -1,0 +1,12 @@
+{
+  "name": "servicestack-zig",
+  "version": "0.1.2",
+  "description": "Typed Zig Client Library for consuming ServiceStack APIs",
+  "repository": "ServiceStack/servicestack-zig",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "bump": "node scripts/bump.mjs",
+    "release": "node scripts/release.mjs"
+  }
+}

@@ -1,0 +1,56 @@
+name: release
+
+# Zig packages are fetched from their release tarball, so there's nothing to push
+# to a registry - this verifies the published tarball is consumable.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to verify, e.g. v0.1.3'
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+
+      - uses: mlugg/setup-zig@v1
+        with:
+          version: 0.15.2
+
+      - name: Verify the package version matches the release tag
+        run: |
+          TAG="${{ github.event.inputs.tag || github.ref_name }}"
+          VERSION=$(grep -m1 '^ *\.version = ' build.zig.zon | cut -d'"' -f2)
+          if [ "v$VERSION" != "$TAG" ]; then
+            echo "build.zig.zon is v$VERSION but the release tag is $TAG"
+            exit 1
+          fi
+
+      - name: zig build test
+        run: zig build test --summary all
+
+      - name: Verify the release tarball can be fetched
+        run: |
+          TAG="${{ github.event.inputs.tag || github.ref_name }}"
+          URL="https://github.com/ServiceStack/servicestack-zig/archive/refs/tags/$TAG.tar.gz"
+          mkdir -p "$RUNNER_TEMP/verify" && cd "$RUNNER_TEMP/verify"
+          printf 'const std = @import("std");\npub fn build(b: *std.Build) void { _ = b; }\n' > build.zig
+          # GitHub takes a moment to publish the tarball for a new tag
+          for i in 1 2 3 4 5; do
+            if zig fetch "$URL" >/dev/null 2>&1; then
+              zig fetch --save "$URL"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "Could not fetch $URL"
+          exit 1
