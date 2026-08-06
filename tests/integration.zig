@@ -7,62 +7,19 @@
 const std = @import("std");
 const servicestack = @import("servicestack");
 
+// Typed DTOs generated from https://test.servicestack.net with:
+//     npx get-dtos zig https://test.servicestack.net
+const dtos = @import("dtos.zig");
+
 const JsonServiceClient = servicestack.JsonServiceClient;
+
+/// Model the ChatCompletion integration test uses, available on test.servicestack.net
+const chat_model = "openai/gpt-oss-120b";
 
 fn testUrl(allocator: std.mem.Allocator) ![]const u8 {
     return std.process.getEnvVarOwned(allocator, "SERVICESTACK_TEST_URL") catch
         allocator.dupe(u8, "https://test.servicestack.net");
 }
-
-// Hand-written DTOs matching the remote Services, generated DTOs have the same shape.
-
-const HelloResponse = struct {
-    result: ?[]const u8 = null,
-};
-
-const Hello = struct {
-    pub const ss_name = "Hello";
-    pub const ss_verb = "GET";
-    pub const Response = HelloResponse;
-
-    name: ?[]const u8 = null,
-};
-
-const ThrowValidationResponse = struct {
-    age: i32 = 0,
-    email: ?[]const u8 = null,
-    responseStatus: ?servicestack.ResponseStatus = null,
-};
-
-const ThrowValidation = struct {
-    pub const ss_name = "ThrowValidation";
-    pub const ss_verb = "POST";
-    pub const Response = ThrowValidationResponse;
-
-    age: ?i32 = null,
-    email: ?[]const u8 = null,
-};
-
-const ThrowTypeResponse = struct {
-    responseStatus: ?servicestack.ResponseStatus = null,
-};
-
-const ThrowType = struct {
-    pub const ss_name = "ThrowType";
-    pub const ss_verb = "GET";
-    pub const Response = ThrowTypeResponse;
-
-    type: ?[]const u8 = null,
-    message: ?[]const u8 = null,
-};
-
-const HelloSecure = struct {
-    pub const ss_name = "HelloSecure";
-    pub const ss_verb = "GET";
-    pub const Response = HelloResponse;
-
-    name: ?[]const u8 = null,
-};
 
 test "sends typed request" {
     const allocator = std.testing.allocator;
@@ -72,10 +29,10 @@ test "sends typed request" {
     var client = try JsonServiceClient.init(allocator, base_url);
     defer client.deinit();
 
-    var res = try client.send(Hello{ .name = "World" });
+    var res = try client.send(dtos.Hello{ .name = "World", .title = "Mr" });
     defer res.deinit();
 
-    try std.testing.expectEqualStrings("Hello, World!", res.value.result.?);
+    try std.testing.expectEqualStrings("Hello, Mr. World!", res.value.result.?);
 }
 
 test "returns validation errors" {
@@ -86,7 +43,7 @@ test "returns validation errors" {
     var client = try JsonServiceClient.init(allocator, base_url);
     defer client.deinit();
 
-    const res = client.send(ThrowValidation{});
+    const res = client.send(dtos.ThrowValidation{});
     try std.testing.expectError(servicestack.ClientError.WebServiceException, res);
 
     const web_ex = client.getError().?;
@@ -104,7 +61,7 @@ test "returns error status codes" {
     var client = try JsonServiceClient.init(allocator, base_url);
     defer client.deinit();
 
-    const res = client.send(ThrowType{ .type = "NotFound", .message = "Not Here" });
+    const res = client.send(dtos.ThrowType{ .type = "NotFound", .message = "Not Here" });
     try std.testing.expectError(servicestack.ClientError.WebServiceException, res);
 
     const web_ex = client.getError().?;
@@ -121,7 +78,7 @@ test "api returns error status instead of error" {
     var client = try JsonServiceClient.init(allocator, base_url);
     defer client.deinit();
 
-    const api = try client.api(HelloSecure{ .name = "World" });
+    const api = try client.api(dtos.HelloSecure{ .name = "World" });
     defer api.deinit();
 
     try std.testing.expect(api.failed());
@@ -136,7 +93,7 @@ test "api returns typed response" {
     var client = try JsonServiceClient.init(allocator, base_url);
     defer client.deinit();
 
-    const api = try client.api(Hello{ .name = "World" });
+    const api = try client.api(dtos.Hello{ .name = "World" });
     defer api.deinit();
 
     try std.testing.expect(api.succeeded());
@@ -155,7 +112,7 @@ test "authenticates then calls secure service" {
     defer auth.deinit();
     try std.testing.expectEqualStrings("test", auth.value.userName.?);
 
-    var res = try client.send(HelloSecure{ .name = "World" });
+    var res = try client.send(dtos.HelloSecure{ .name = "World" });
     defer res.deinit();
     try std.testing.expectEqualStrings("Hello, World!", res.value.result.?);
 }
@@ -168,8 +125,8 @@ test "sends batched requests" {
     var client = try JsonServiceClient.init(allocator, base_url);
     defer client.deinit();
 
-    const requests = [_]Hello{ .{ .name = "A" }, .{ .name = "B" } };
-    var res = try client.sendAll(HelloResponse, requests[0..]);
+    const requests = [_]dtos.Hello{ .{ .name = "A" }, .{ .name = "B" } };
+    var res = try client.sendAll(dtos.HelloResponse, requests[0..]);
     defer res.deinit();
 
     try std.testing.expectEqual(@as(usize, 2), res.value.len);
@@ -185,53 +142,13 @@ test "sends request to custom route" {
     var client = try JsonServiceClient.init(allocator, base_url);
     defer client.deinit();
 
-    var res = try client.getUrl(HelloResponse, "/hello/World");
+    var res = try client.getUrl(dtos.HelloResponse, "/hello/World");
     defer res.deinit();
 
     try std.testing.expectEqualStrings("Hello, World!", res.value.result.?);
 }
 
-// ── AI Chat ──
-
-/// Model the ChatCompletion integration test uses, available on test.servicestack.net
-const chat_model = "openai/gpt-oss-120b";
-
-// DTOs of ServiceStack's AI Chat ChatCompletion API, an OpenAI-compatible
-// Chat Completions endpoint.
-
-const AiMessage = struct {
-    role: []const u8,
-    // Content parts are polymorphic, so they're sent as raw JSON
-    content: ?[]const std.json.Value = null,
-};
-
-const ChoiceMessage = struct {
-    role: ?[]const u8 = null,
-    content: ?[]const u8 = null,
-    reasoning: ?[]const u8 = null,
-};
-
-const Choice = struct {
-    index: i32 = 0,
-    finish_reason: ?[]const u8 = null,
-    message: ?ChoiceMessage = null,
-};
-
-const ChatResponse = struct {
-    id: ?[]const u8 = null,
-    model: ?[]const u8 = null,
-    choices: ?[]const Choice = null,
-};
-
-const ChatCompletion = struct {
-    pub const ss_name = "ChatCompletion";
-    pub const ss_verb = "POST";
-    pub const Response = ChatResponse;
-
-    model: []const u8,
-    messages: []const AiMessage,
-};
-
+// Sends a Request to ServiceStack AI Chat's OpenAI-compatible ChatCompletion API
 test "sends chat completion" {
     const allocator = std.testing.allocator;
     const base_url = try testUrl(allocator);
@@ -244,15 +161,17 @@ test "sends chat completion" {
     var auth = try client.authenticate("test", "test");
     auth.deinit();
 
+    // Content parts are polymorphic, e.g. text, image_url or input_audio, so they're
+    // held as the raw JSON of the content part being sent
     var content_part = std.json.ObjectMap.init(allocator);
     defer content_part.deinit();
     try content_part.put("type", .{ .string = "text" });
     try content_part.put("text", .{ .string = "Capital of France? Answer in 3 words" });
 
-    const content = [_]std.json.Value{.{ .object = content_part }};
-    const messages = [_]AiMessage{.{ .role = "user", .content = content[0..] }};
+    var content = [_]std.json.Value{.{ .object = content_part }};
+    var messages = [_]dtos.AiMessage{.{ .role = "user", .content = content[0..] }};
 
-    var res = client.send(ChatCompletion{
+    var res = client.send(dtos.ChatCompletion{
         .model = chat_model,
         .messages = messages[0..],
     }) catch |err| {
@@ -268,10 +187,9 @@ test "sends chat completion" {
     };
     defer res.deinit();
 
-    const choices = res.value.choices orelse return error.TestUnexpectedResult;
-    try std.testing.expect(choices.len > 0);
+    try std.testing.expect(res.value.choices.len > 0);
 
-    const message = choices[0].message orelse return error.TestUnexpectedResult;
+    const message = res.value.choices[0].message orelse return error.TestUnexpectedResult;
     try std.testing.expect(message.content != null);
     try std.testing.expect(message.content.?.len > 0);
     try std.testing.expectEqualStrings(chat_model, res.value.model.?);
