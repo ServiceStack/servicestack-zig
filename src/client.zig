@@ -174,6 +174,15 @@ pub fn nameOf(comptime T: type) []const u8 {
     return type_name;
 }
 
+/// The field a DTO inheriting a collection holds its collection in, declared with
+/// `pub const ss_collection`. These DTOs are sent and returned as the JSON Array of
+/// that field instead of a JSON Object, which is how ServiceStack serializes them.
+pub fn collectionFieldOf(comptime T: type) ?[]const u8 {
+    if (@typeInfo(T) != .@"struct") return null;
+    if (!@hasDecl(T, "ss_collection")) return null;
+    return T.ss_collection;
+}
+
 /// The HTTP Method a Request DTO should be sent with, POST when not declared.
 pub fn methodOf(comptime T: type) std.http.Method {
     if (@hasDecl(T, "ss_verb")) return url_util.parseMethod(T.ss_verb);
@@ -625,9 +634,16 @@ pub const JsonServiceClient = struct {
         defer if (payload) |p| self.allocator.free(p);
 
         if (@TypeOf(request) != @TypeOf(null) and url_util.hasRequestBody(method)) {
-            payload = try std.fmt.allocPrint(self.allocator, "{f}", .{
-                std.json.fmt(request, .{ .emit_null_optional_fields = false }),
-            });
+            // DTOs inheriting a collection are sent as their collection's JSON Array
+            if (comptime collectionFieldOf(@TypeOf(request))) |field| {
+                payload = try std.fmt.allocPrint(self.allocator, "{f}", .{
+                    std.json.fmt(@field(request, field), .{ .emit_null_optional_fields = false }),
+                });
+            } else {
+                payload = try std.fmt.allocPrint(self.allocator, "{f}", .{
+                    std.json.fmt(request, .{ .emit_null_optional_fields = false }),
+                });
+            }
         }
 
         return self.sendRequest(method, path, payload, if (payload != null) "application/json" else null, retry_on_auth_failure);
@@ -856,6 +872,19 @@ fn parseJson(comptime T: type, allocator: std.mem.Allocator, body: []const u8) !
         .allocate = .alloc_always,
     };
     const json = std.mem.trim(u8, body, " \t\r\n");
+
+    // DTOs inheriting a collection are returned as their collection's JSON Array
+    if (comptime collectionFieldOf(T)) |field| {
+        var value: T = .{};
+        @field(value, field) = try std.json.parseFromSliceLeaky(
+            @FieldType(T, field),
+            allocator,
+            if (json.len == 0) "[]" else json,
+            options,
+        );
+        return value;
+    }
+
     if (json.len == 0) {
         return std.json.parseFromSliceLeaky(T, allocator, "{}", options);
     }
@@ -897,6 +926,52 @@ test "methodOf uses the declared Verb, defaulting to POST" {
     const CreateHello = struct {};
     try std.testing.expectEqual(std.http.Method.GET, methodOf(Hello));
     try std.testing.expectEqual(std.http.Method.POST, methodOf(CreateHello));
+}
+
+test "collectionFieldOf resolves the field of DTOs inheriting a collection" {
+    const Contact = struct { id: i32 = 0 };
+    const StoreContacts = struct {
+        pub const ss_collection = "items";
+        items: []const Contact = &.{},
+    };
+    const Hello = struct { name: ?[]const u8 = null };
+
+    try std.testing.expectEqualStrings("items", collectionFieldOf(StoreContacts).?);
+    try std.testing.expectEqual(@as(?[]const u8, null), collectionFieldOf(Hello));
+    try std.testing.expectEqual(@as(?[]const u8, null), collectionFieldOf([]const u8));
+}
+
+test "DTOs inheriting a collection are sent and parsed as a JSON Array" {
+    const allocator = std.testing.allocator;
+
+    const Contact = struct { id: i32 = 0, firstName: ?[]const u8 = null };
+    const StoreContacts = struct {
+        pub const ss_name = "StoreContacts";
+        pub const ss_verb = "POST";
+        pub const ss_collection = "items";
+        items: []const Contact = &.{},
+    };
+
+    // Sent as the JSON Array of its collection, not a JSON Object
+    const request = StoreContacts{ .items = &.{.{ .id = 1, .firstName = "A" }} };
+    const json = try std.fmt.allocPrint(allocator, "{f}", .{
+        std.json.fmt(@field(request, StoreContacts.ss_collection), .{ .emit_null_optional_fields = false }),
+    });
+    defer allocator.free(json);
+    try std.testing.expectEqualStrings("[{\"id\":1,\"firstName\":\"A\"}]", json);
+
+    // And populated from the JSON Array the API returns
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    defer arena.deinit();
+
+    const parsed = try parseJson(StoreContacts, arena.allocator(), json);
+    try std.testing.expectEqual(@as(usize, 1), parsed.items.len);
+    try std.testing.expectEqual(@as(i32, 1), parsed.items[0].id);
+    try std.testing.expectEqualStrings("A", parsed.items[0].firstName.?);
+
+    // An empty Body is an empty collection
+    const empty = try parseJson(StoreContacts, arena.allocator(), "");
+    try std.testing.expectEqual(@as(usize, 0), empty.items.len);
 }
 
 test "ResponseTypeOf resolves the declared Response Type" {

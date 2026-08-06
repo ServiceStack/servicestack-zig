@@ -37,6 +37,7 @@ pub const CookieJar = client.CookieJar;
 pub const ResponseTypeOf = client.ResponseTypeOf;
 pub const nameOf = client.nameOf;
 pub const methodOf = client.methodOf;
+pub const collectionFieldOf = client.collectionFieldOf;
 
 pub const ResponseStatus = types.ResponseStatus;
 pub const ResponseError = types.ResponseError;
@@ -80,4 +81,5 @@ test "exports the public API surface" {
     _ = ResponseStatus;
     _ = QueryResponse(ResponseStatus);
     _ = Authenticate;
+    _ = collectionFieldOf;
 }
