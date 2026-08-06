@@ -32,6 +32,8 @@ pub const JsonServiceClient = client.JsonServiceClient;
 pub const ClientError = client.ClientError;
 pub const WebServiceException = client.WebServiceException;
 pub const ApiResult = client.ApiResult;
+pub const UploadFile = client.UploadFile;
+pub const CookieJar = client.CookieJar;
 pub const ResponseTypeOf = client.ResponseTypeOf;
 pub const nameOf = client.nameOf;
 pub const methodOf = client.methodOf;
@@ -66,4 +68,16 @@ test {
     _ = client;
     _ = types;
     _ = url;
+}
+
+test "exports the public API surface" {
+    // Types consumers reference by name must be re-exported from the root module
+    _ = JsonServiceClient;
+    _ = UploadFile;
+    _ = CookieJar;
+    _ = ClientError;
+    _ = WebServiceException;
+    _ = ResponseStatus;
+    _ = QueryResponse(ResponseStatus);
+    _ = Authenticate;
 }

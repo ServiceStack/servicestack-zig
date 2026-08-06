@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.2]
+
+### Fixed
+
+- Re-export `UploadFile` and `CookieJar` from the root module so they can be
+  referenced by name, e.g. `ss.UploadFile`
+
 ## [0.1.1]
 
 ### Added
@@ -32,5 +39,6 @@ All notable changes to this project will be documented in this file.
 - Built-in ServiceStack DTOs referenced by generated DTOs (`ResponseStatus`,
   `QueryResponse(T)`, `Authenticate`, ...)
 
+[0.1.2]: https://github.com/ServiceStack/servicestack-zig/releases/tag/v0.1.2
 [0.1.1]: https://github.com/ServiceStack/servicestack-zig/releases/tag/v0.1.1
 [0.1.0]: https://github.com/ServiceStack/servicestack-zig/releases/tag/v0.1.0
