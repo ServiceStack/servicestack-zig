@@ -190,3 +190,89 @@ test "sends request to custom route" {
 
     try std.testing.expectEqualStrings("Hello, World!", res.value.result.?);
 }
+
+// ── AI Chat ──
+
+/// Model the ChatCompletion integration test uses, available on test.servicestack.net
+const chat_model = "openai/gpt-oss-120b";
+
+// DTOs of ServiceStack's AI Chat ChatCompletion API, an OpenAI-compatible
+// Chat Completions endpoint.
+
+const AiMessage = struct {
+    role: []const u8,
+    // Content parts are polymorphic, so they're sent as raw JSON
+    content: ?[]const std.json.Value = null,
+};
+
+const ChoiceMessage = struct {
+    role: ?[]const u8 = null,
+    content: ?[]const u8 = null,
+    reasoning: ?[]const u8 = null,
+};
+
+const Choice = struct {
+    index: i32 = 0,
+    finish_reason: ?[]const u8 = null,
+    message: ?ChoiceMessage = null,
+};
+
+const ChatResponse = struct {
+    id: ?[]const u8 = null,
+    model: ?[]const u8 = null,
+    choices: ?[]const Choice = null,
+};
+
+const ChatCompletion = struct {
+    pub const ss_name = "ChatCompletion";
+    pub const ss_verb = "POST";
+    pub const Response = ChatResponse;
+
+    model: []const u8,
+    messages: []const AiMessage,
+};
+
+test "sends chat completion" {
+    const allocator = std.testing.allocator;
+    const base_url = try testUrl(allocator);
+    defer allocator.free(base_url);
+
+    var client = try JsonServiceClient.init(allocator, base_url);
+    defer client.deinit();
+
+    // The ChatCompletion API requires an authenticated User
+    var auth = try client.authenticate("test", "test");
+    auth.deinit();
+
+    var content_part = std.json.ObjectMap.init(allocator);
+    defer content_part.deinit();
+    try content_part.put("type", .{ .string = "text" });
+    try content_part.put("text", .{ .string = "Capital of France? Answer in 3 words" });
+
+    const content = [_]std.json.Value{.{ .object = content_part }};
+    const messages = [_]AiMessage{.{ .role = "user", .content = content[0..] }};
+
+    var res = client.send(ChatCompletion{
+        .model = chat_model,
+        .messages = messages[0..],
+    }) catch |err| {
+        // A shared LLM can be rate limited or temporarily unavailable
+        const web_ex = client.getError() orelse return err;
+        switch (web_ex.status_code) {
+            429, 502, 503, 504 => {
+                std.debug.print("skipping, ChatCompletion unavailable: {d}\n", .{web_ex.status_code});
+                return error.SkipZigTest;
+            },
+            else => return err,
+        }
+    };
+    defer res.deinit();
+
+    const choices = res.value.choices orelse return error.TestUnexpectedResult;
+    try std.testing.expect(choices.len > 0);
+
+    const message = choices[0].message orelse return error.TestUnexpectedResult;
+    try std.testing.expect(message.content != null);
+    try std.testing.expect(message.content.?.len > 0);
+    try std.testing.expectEqualStrings(chat_model, res.value.model.?);
+}
