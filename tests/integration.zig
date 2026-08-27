@@ -21,6 +21,15 @@ fn testUrl(allocator: std.mem.Allocator) ![]const u8 {
         allocator.dupe(u8, "https://test.servicestack.net");
 }
 
+/// Converts a typed DTO into the JSON Value that polymorphic properties hold
+fn jsonValueOf(allocator: std.mem.Allocator, dto: anytype) !std.json.Parsed(std.json.Value) {
+    const json = try std.fmt.allocPrint(allocator, "{f}", .{
+        std.json.fmt(dto, .{ .emit_null_optional_fields = false }),
+    });
+    defer allocator.free(json);
+    return std.json.parseFromSlice(std.json.Value, allocator, json, .{});
+}
+
 test "sends typed request" {
     const allocator = std.testing.allocator;
     const base_url = try testUrl(allocator);
@@ -162,13 +171,14 @@ test "sends chat completion" {
     auth.deinit();
 
     // Content parts are polymorphic, e.g. text, image_url or input_audio, so they're
-    // held as the raw JSON of the content part being sent
-    var content_part = std.json.ObjectMap.init(allocator);
-    defer content_part.deinit();
-    try content_part.put("type", .{ .string = "text" });
-    try content_part.put("text", .{ .string = "Capital of France? Answer in 3 words" });
+    // held as the JSON Value of the typed content part being sent
+    var text_part = try jsonValueOf(allocator, dtos.AiTextContent{
+        .type = "text",
+        .text = "Capital of France? Answer in 3 words",
+    });
+    defer text_part.deinit();
 
-    var content = [_]std.json.Value{.{ .object = content_part }};
+    var content = [_]std.json.Value{text_part.value};
     var messages = [_]dtos.AiMessage{.{ .role = "user", .content = content[0..] }};
 
     var res = client.send(dtos.ChatCompletion{

@@ -1,23 +1,20 @@
 /// Options:
-/// Date: 2026-08-06 15:17:51
+/// Date: 2026-08-07 02:41:43
 /// Version: 10.09
 /// Tip: To override a DTO option, remove "/" prefix before updating
 /// BaseUrl: https://test.servicestack.net
-
-/// GlobalNamespace: 
-//MakePropertiesOptional: False
-//AddServiceStackTypes: True
-//AddResponseStatus: False
-/// AddImplicitVersion: 
-//AddDescriptionAsComments: True
-/// IncludeTypes: 
-/// ExcludeTypes: 
-//DefaultImports: const std = @import("std");
+/// GlobalNamespace:
+/// MakePropertiesOptional: False
+/// AddServiceStackTypes: True
+/// AddResponseStatus: False
+/// AddImplicitVersion:
+/// AddDescriptionAsComments: True
+/// IncludeTypes:
+/// ExcludeTypes:
+/// DefaultImports: const std = @import("std");
 ///
-
 const std = @import("std");
 const ss = @import("servicestack");
-
 
 pub const Item = struct {
     name: ?[]const u8 = null,
@@ -457,8 +454,7 @@ pub fn HelloBase_1(comptime T: type) type {
     };
 }
 
-pub const EmptyClass = struct {
-};
+pub const EmptyClass = struct {};
 
 pub const DayOfWeek = enum {
     Sunday,
@@ -809,57 +805,49 @@ pub const RockstarAudit = struct {
 pub fn CreateAuditBase(comptime Table: type, comptime TResponse: type) type {
     _ = Table;
     _ = TResponse;
-    return struct {
-    };
+    return struct {};
 }
 
 pub fn CreateAuditTenantBase(comptime Table: type, comptime TResponse: type) type {
     _ = Table;
     _ = TResponse;
-    return struct {
-    };
+    return struct {};
 }
 
 pub fn UpdateAuditBase(comptime Table: type, comptime TResponse: type) type {
     _ = Table;
     _ = TResponse;
-    return struct {
-    };
+    return struct {};
 }
 
 pub fn UpdateAuditTenantBase(comptime Table: type, comptime TResponse: type) type {
     _ = Table;
     _ = TResponse;
-    return struct {
-    };
+    return struct {};
 }
 
 pub fn PatchAuditBase(comptime Table: type, comptime TResponse: type) type {
     _ = Table;
     _ = TResponse;
-    return struct {
-    };
+    return struct {};
 }
 
 pub fn PatchAuditTenantBase(comptime Table: type, comptime TResponse: type) type {
     _ = Table;
     _ = TResponse;
-    return struct {
-    };
+    return struct {};
 }
 
 pub fn SoftDeleteAuditBase(comptime Table: type, comptime TResponse: type) type {
     _ = Table;
     _ = TResponse;
-    return struct {
-    };
+    return struct {};
 }
 
 pub fn SoftDeleteAuditTenantBase(comptime Table: type, comptime TResponse: type) type {
     _ = Table;
     _ = TResponse;
-    return struct {
-    };
+    return struct {};
 }
 
 pub const RockstarVersion = struct {
@@ -1387,8 +1375,7 @@ pub const AiUsage = struct {
     duration: ?i64 = null,
 };
 
-pub const TypesGroup = struct {
-};
+pub const TypesGroup = struct {};
 
 /// Text content part
 // @DataContract
@@ -1937,7 +1924,6 @@ pub const EchoComplexTypes = struct {
 pub const StoreRockstars = struct {
     pub const ss_name = "StoreRockstars";
     pub const ss_verb = "POST";
-
     pub const ss_collection = "items";
 
     items: []Rockstar = &.{},
@@ -2087,14 +2073,12 @@ pub const GetChatHistory = struct {
 pub const ClearChatHistory = struct {
     pub const ss_name = "ClearChatHistory";
     pub const ss_verb = "POST";
-
 };
 
 // @Route("/reset-serverevents")
 pub const ResetServerEvents = struct {
     pub const ss_name = "ResetServerEvents";
     pub const ss_verb = "POST";
-
 };
 
 // @Route("/channels/{Channel}/object")
@@ -2114,7 +2098,6 @@ pub const GetUserDetails = struct {
     pub const ss_name = "GetUserDetails";
     pub const ss_verb = "GET";
     pub const Response = GetUserDetailsResponse;
-
 };
 
 pub const CustomHttpError = struct {
@@ -2138,14 +2121,12 @@ pub const GetItems = struct {
     pub const ss_name = "GetItems";
     pub const ss_verb = "GET";
     pub const Response = Items;
-
 };
 
 pub const GetNakedItems = struct {
     pub const ss_name = "GetNakedItems";
     pub const ss_verb = "GET";
     pub const Response = []Item;
-
 };
 
 // @ValidateRequest(Validator="IsAuthenticated")
@@ -2275,7 +2256,6 @@ pub const ThrowBusinessError = struct {
     pub const ss_name = "ThrowBusinessError";
     pub const ss_verb = "POST";
     pub const Response = ThrowBusinessErrorResponse;
-
 };
 
 /// Convert speech to text
@@ -2617,7 +2597,6 @@ pub const InvalidateLastAccessToken = struct {
     pub const ss_name = "InvalidateLastAccessToken";
     pub const ss_verb = "POST";
     pub const Response = ss.EmptyResponse;
-
 };
 
 // @Route("/logs")
@@ -2653,7 +2632,6 @@ pub const GetExample = struct {
     pub const ss_name = "GetExample";
     pub const ss_verb = "GET";
     pub const Response = GetExampleResponse;
-
 };
 
 // @Route("/messages/{Id}", "GET")
@@ -2967,7 +2945,6 @@ pub const HelloInnerTypes = struct {
     pub const ss_name = "HelloInnerTypes";
     pub const ss_verb = "POST";
     pub const Response = HelloInnerTypesResponse;
-
 };
 
 pub const HelloBuiltin = struct {
@@ -3051,14 +3028,12 @@ pub const Ping = struct {
     pub const ss_name = "Ping";
     pub const ss_verb = "POST";
     pub const Response = PingResponse;
-
 };
 
 // @Route("/reset-connections")
 pub const ResetConnections = struct {
     pub const ss_name = "ResetConnections";
     pub const ss_verb = "POST";
-
 };
 
 // @Route("/requires-role")
@@ -3066,7 +3041,6 @@ pub const RequiresRole = struct {
     pub const ss_name = "RequiresRole";
     pub const ss_verb = "POST";
     pub const Response = RequiresRoleResponse;
-
 };
 
 // @Route("/return/string")
@@ -3100,21 +3074,18 @@ pub const ReturnStream = struct {
 pub const ReturnJson = struct {
     pub const ss_name = "ReturnJson";
     pub const ss_verb = "POST";
-
 };
 
 // @Route("/return/json/header")
 pub const ReturnJsonHeader = struct {
     pub const ss_name = "ReturnJsonHeader";
     pub const ss_verb = "POST";
-
 };
 
 // @Route("/write/json")
 pub const WriteJson = struct {
     pub const ss_name = "WriteJson";
     pub const ss_verb = "POST";
-
 };
 
 // @Route("/Request1", "GET")
@@ -3122,7 +3093,6 @@ pub const GetRequest1 = struct {
     pub const ss_name = "GetRequest1";
     pub const ss_verb = "GET";
     pub const Response = []ReturnedDto;
-
 };
 
 // @Route("/Request2", "GET")
@@ -3130,7 +3100,6 @@ pub const GetRequest2 = struct {
     pub const ss_name = "GetRequest2";
     pub const ss_verb = "GET";
     pub const Response = []ReturnedDto;
-
 };
 
 // @Route("/sendjson")
@@ -3221,7 +3190,6 @@ pub const GetSession = struct {
     pub const ss_name = "GetSession";
     pub const ss_verb = "POST";
     pub const Response = GetSessionResponse;
-
 };
 
 // @Route("/session/edit/{CustomName}")
@@ -3282,7 +3250,6 @@ pub const TestAuth = struct {
     pub const ss_name = "TestAuth";
     pub const ss_verb = "POST";
     pub const Response = TestAuthResponse;
-
 };
 
 // @Route("/testdata/AllTypes")
@@ -3290,7 +3257,6 @@ pub const TestDataAllTypes = struct {
     pub const ss_name = "TestDataAllTypes";
     pub const ss_verb = "POST";
     pub const Response = AllTypes;
-
 };
 
 // @Route("/testdata/AllCollectionTypes")
@@ -3298,21 +3264,18 @@ pub const TestDataAllCollectionTypes = struct {
     pub const ss_name = "TestDataAllCollectionTypes";
     pub const ss_verb = "POST";
     pub const Response = AllCollectionTypes;
-
 };
 
 // @Route("/void-response")
 pub const TestVoidResponse = struct {
     pub const ss_name = "TestVoidResponse";
     pub const ss_verb = "POST";
-
 };
 
 // @Route("/null-response")
 pub const TestNullResponse = struct {
     pub const ss_name = "TestNullResponse";
     pub const ss_verb = "POST";
-
 };
 
 /// Chat Completions API (OpenAI-Compatible)
